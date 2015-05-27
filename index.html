@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.7.0/mapbox-gl.css' rel='stylesheet' />
+    <style type="text/css">
+        #map {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.7.0/mapbox-gl.js'></script>
+<script type="text/javascript" src="bower_components/underscore/underscore-min.js"></script>
+<script type="text/javascript" src="bower_components/jquery/dist/jquery.min.js"></script>
+<script type="text/javascript" src="bower_components/KNreiseAPI/dist/KNreiseAPI.min.js"></script>
+
+<script type="text/javascript">
+    (function () {
+        'use strict';
+
+        //setup mapboxgl map
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYXRsZWZyZW4iLCJhIjoiblVybXMyYyJ9.tFyswxpRSc5XPLeIzeR29A';
+        var map = new mapboxgl.Map({
+            container: 'map', // container id
+            style: 'https://www.mapbox.com/mapbox-gl-styles/styles/outdoors-v7.json', //stylesheet location
+        });
+        map.addControl(new mapboxgl.Navigation());
+
+        //create an api
+        var api = new KR.API({
+            cartodb: {
+                apikey: 'e6b96c1e6a71b8b2c6f8dbb611c08da5842f5ff5',
+                user: 'knreise'
+            }
+        });
+
+        //handle click and show popup
+        map.on('click', function (e) {
+            map.featuresAt([e.point.x, e.point.y], {radius: 10}, function (err, hits) {
+                if (err || !hits.length) {
+                    return;
+                }
+                var html = _.map(hits, function (hit) {
+                    return '<strong>' + hit.properties.title +'</strong>';
+                }).join('<br />');
+                var popup = new mapboxgl.Popup().setLatLng(map.unproject(e.point))
+                    .setHTML(html)
+                    .addTo(map);
+            });
+        });
+
+        //helper function for creating a layer
+        function createLayer(source, id, icon, contentType) {
+            return {
+                "id": id,
+                "type": "symbol",
+                "source": source,
+                "interactive": true,
+                "filter": ["==", "contentType", contentType],
+                "layout": {
+                    "icon-image": icon + "-12"
+                },
+                "paint": {
+                   "icon-size": 1.5
+                }
+            };
+        }
+
+        //define the dataset
+        var diMu = {
+            api: 'norvegiana',
+            dataset: 'DiMu'
+        };
+
+        //get bounds for Dovre
+        api.getMunicipalityBounds(511, function (bbox) {
+            var bounds = KR.Util.splitBbox(bbox);
+            map.fitBounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]]);
+
+            //get the datset within the bounds
+            api.getBbox(diMu, bbox, function (geoJSON) {
+
+                //add the geojson as a source
+                map.addSource("DiMu", {
+                    "type": "geojson",
+                    "data": geoJSON
+                });
+
+                //create a images layer using the source
+                map.addLayer(createLayer('DiMu', 'DiMu-images', 'camera', 'IMAGE'));
+            });
+
+        });
+
+    }());
+</script>
+
+</body>
+</html>
